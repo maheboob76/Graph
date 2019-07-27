@@ -14,6 +14,16 @@ USING PERIODIC COMMIT 10000
 LOAD CSV WITH HEADERS FROM 'file:///margin_trades.csv' AS line
 CREATE (:Trade { trade_id: line.trade_id, trade_name: line.trade_name, trade_created_date: line.trade_created_date,trade_arr_status: line.trade_arr_status, agreement_id: line.agreement_id } );
 
+
+#WITH BOOLEAN STATUS ---- periodic commit helps with regular synch and avoiding OutOfMemory issues
+USING PERIODIC COMMIT 10000
+LOAD CSV WITH HEADERS FROM 'file:///margin_trades.csv' AS line
+CREATE (:Trade { trade_id: line.trade_id, trade_name: line.trade_name, trade_created_date: line.trade_created_date,trade_arr_status: toBoolean(line.trade_arr_status) } );
+
+USING PERIODIC COMMIT 10000
+LOAD CSV WITH HEADERS FROM 'file:///margin_trades.csv' AS line
+CREATE (:Trade { trade_id: line.trade_id, trade_name: line.trade_name, trade_created_date: line.trade_created_date,trade_arr_status: (case line.trade_arr_status when '1' then true else false end) } );
+
 #create Index
 CREATE INDEX ON :Trade(trade_id);
 CREATE INDEX ON :Trade(trade_arr_status);
@@ -21,7 +31,7 @@ CREATE INDEX ON :Trade(agreement_id);
 
 #Search nodes
 MATCH(t:Trade) WHERE t.trade_arr_status="off" RETURN t LIMIT 10;
-
+MATCH(t:Trade) WHERE t.trade_arr_status=fasle RETURN t LIMIT 10;
 
 #UPDATE nodes/properties
 MATCH(t:Trade) WHERE t.trade_id="1" SET t.trade_arr_status="on"  RETURN t;
@@ -62,9 +72,10 @@ RETURN count(*);
 MATCH(a:Agreement)-[r:IS_PART_OF]-(t:Trade) WHERE a.agreement_id="1" RETURN t;
  
  
-MATCH(a:Agreement)-[r:IS_PART_OF]-(t:Trade) WHERE a.agreement_id="1" AND t.trade_arr_status="off" RETURN t;
+MATCH(a:Agreement)-[r:IS_PART_OF]-(t:Trade) WHERE a.agreement_id="1" AND t.trade_arr_status=TRUE RETURN t LIMIT 10;
 
 
 #Find pending agreements at the time of sweep
-MATCH(a:Agreement)-[r:IS_PART_OF]-(t:Trade) WHERE t.trade_arr_status="off" RETURN a.agreement_id, count(t);
+MATCH(a:Agreement)-[r:IS_PART_OF]-(t:Trade) WHERE t.trade_arr_status=FALSE RETURN a.agreement_id, count(t);
+MATCH(t:Trade)-[r:IS_PART_OF]-> (a:Agreement) WHERE t.trade_arr_status=FALSE RETURN a.agreement_id, count(t);
 
